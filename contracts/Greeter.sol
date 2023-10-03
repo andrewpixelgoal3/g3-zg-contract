@@ -1,7 +1,9 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-contract Greeter {
+import "./SessionManager.sol";
+
+contract Greeter is SessionManager {
     string private greeting;
     address public ownerGreeter;
     modifier onlyOwnerGreeting() {
@@ -12,7 +14,7 @@ contract Greeter {
         _;
     }
 
-    constructor(address _owner) {
+    constructor(address _owner) SessionManager(_owner) {
         ownerGreeter = _owner;
     }
 
@@ -20,7 +22,7 @@ contract Greeter {
         return greeting;
     }
 
-    function setGreeting(string memory _greeting) public onlyOwnerGreeting {
+    function setGreeting(string memory _greeting) public onlyOwner {
         greeting = _greeting;
     }
 }

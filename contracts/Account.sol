@@ -14,11 +14,13 @@ import "./SpendingLimit.sol";
 import "./SessionManager.sol";
 import "./Greeter.sol";
 
-contract Account is IAccount, IERC1271, SpendingLimit, SessionManager, Greeter {
+contract Account is IAccount, IERC1271, SpendingLimit, Greeter {
     // to get transaction hash
     using TransactionHelper for Transaction;
 
     bytes4 constant EIP1271_SUCCESS_RETURN_VALUE = 0x1626ba7e;
+    // bytes4 private constant GREETER_SET_GREETING_SELECTOR =
+    //     bytes4(keccak256(bytes("setGreeting(address,string)")));
 
     modifier onlyBootloader() {
         require(
@@ -29,7 +31,7 @@ contract Account is IAccount, IERC1271, SpendingLimit, SessionManager, Greeter {
         _;
     }
 
-    constructor(address _owner) SessionManager(_owner) Greeter(_owner) {}
+    constructor(address _owner) Greeter(_owner) {}
 
     function validateTransaction(
         bytes32,
@@ -73,7 +75,6 @@ contract Account is IAccount, IERC1271, SpendingLimit, SessionManager, Greeter {
             totalRequiredBalance <= address(this).balance,
             "Not enough balance for fee + value"
         );
-
         if (
             isValidSignature(txHash, _transaction.signature) ==
             EIP1271_SUCCESS_RETURN_VALUE
@@ -166,7 +167,6 @@ contract Account is IAccount, IERC1271, SpendingLimit, SessionManager, Greeter {
             s := mload(add(_signature, 0x40))
             v := and(mload(add(_signature, 0x41)), 0xff)
         }
-
         if (v != 27 && v != 28) {
             magic = bytes4(0);
         }
@@ -186,7 +186,6 @@ contract Account is IAccount, IERC1271, SpendingLimit, SessionManager, Greeter {
             magic = bytes4(0);
         }
         address recoveredAddress = ecrecover(_hash, v, r, s);
-
         // Note, that we should abstain from using the require here in order to allow for fee estimation to work
         if (recoveredAddress != owner && recoveredAddress != address(0)) {
             //get session

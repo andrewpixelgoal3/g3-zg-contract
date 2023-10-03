@@ -26,6 +26,15 @@ contract SessionManager {
         _;
     }
 
+    modifier onlySession() {
+        require(sessionKeys.pubKey != address(0), "Session is not created");
+        require(
+            msg.sender == sessionKeys.pubKey,
+            "Only the session that inherits this contract can call this method."
+        );
+        _;
+    }
+
     constructor(address _owner) {
         owner = _owner;
     }

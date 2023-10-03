@@ -9,6 +9,7 @@ import {
 import * as ethers from "ethers";
 import { deployAAFactory, deployAccount } from "./utils/deploy";
 import { sendTx } from "./utils/sendtx";
+import { expect } from "chai";
 
 const deployKey =
   "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
@@ -21,6 +22,7 @@ let user: Wallet;
 
 let factory: Contract;
 let account: Contract;
+let accountOwner: Contract;
 
 before(async () => {
   provider = Provider.getDefaultProvider();
@@ -28,7 +30,13 @@ before(async () => {
 
   user = new Wallet(process.env.WALLET_PRIVATE_KEY || "", provider);
   factory = await deployAAFactory(wallet);
-  account = await deployAccount(wallet, user, factory.address);
+  const { accountWithSmSigner, accountWithUserSigner } = await deployAccount(
+    wallet,
+    user,
+    factory.address
+  );
+  account = accountWithSmSigner;
+  accountOwner = accountWithUserSigner;
   //   100 ETH transfered to Account
   await (
     await wallet.sendTransaction({
@@ -87,16 +95,20 @@ describe("Spending limit", function () {
       ...tx.customData,
       customSignature: signature,
     };
-    await provider.sendTransaction(utils.serialize(tx));
+    await (await provider.sendTransaction(utils.serialize(tx))).wait();
+    const session = await account.getSession();
+    console.log("session: ", session);
+
+    expect(session._pubKey).to.eq(w.address);
     //set greeting
-    let tx1 = await account.populateTransaction.setGreeting("Andrew", {
+    let tx1 = await accountOwner.populateTransaction.setGreeting("Andrew", {
       value: ethers.BigNumber.from(0),
     });
     tx1 = {
       ...tx1,
-      from: account.address,
+      from: user.address,
       chainId: (await provider.getNetwork()).chainId,
-      nonce: await provider.getTransactionCount(account.address),
+      nonce: await provider.getTransactionCount(user.address),
       type: 113,
       customData: {
         gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
@@ -104,7 +116,7 @@ describe("Spending limit", function () {
     };
     tx1.gasPrice = await provider.getGasPrice();
     if (tx1.gasLimit == undefined) {
-      tx1.gasLimit = await provider.estimateGas(tx);
+      tx1.gasLimit = await provider.estimateGas(tx1);
     }
     const signedTxHash1 = EIP712Signer.getSignedDigest(tx1);
     const signature1 = ethers.utils.arrayify(
@@ -114,6 +126,6 @@ describe("Spending limit", function () {
       ...tx1.customData,
       customSignature: signature1,
     };
-    await provider.sendTransaction(utils.serialize(tx1));
+    await (await provider.sendTransaction(utils.serialize(tx1))).wait();
   });
 });

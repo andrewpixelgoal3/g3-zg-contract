@@ -18,7 +18,10 @@ export async function deployAccount(
   wallet: Wallet,
   owner: Wallet,
   factory_address: string
-): Promise<Contract> {
+): Promise<{
+  accountWithSmSigner: Contract;
+  accountWithUserSigner: Contract;
+}> {
   let deployer: Deployer = new Deployer(hre, wallet);
   const factoryArtifact = await hre.artifacts.readArtifact("AAFactory");
   const factory = new ethers.Contract(
@@ -42,5 +45,16 @@ export async function deployAccount(
   );
   const accountArtifact = await deployer.loadArtifact("Account");
 
-  return new ethers.Contract(account_address, accountArtifact.abi, wallet);
+  return {
+    accountWithSmSigner: new ethers.Contract(
+      account_address,
+      accountArtifact.abi,
+      wallet
+    ),
+    accountWithUserSigner: new ethers.Contract(
+      account_address,
+      accountArtifact.abi,
+      owner
+    ),
+  };
 }
