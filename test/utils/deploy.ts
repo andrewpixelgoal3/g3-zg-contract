@@ -7,7 +7,6 @@ export async function deployAAFactory(wallet: Wallet): Promise<Contract> {
   let deployer: Deployer = new Deployer(hre, wallet);
   const factoryArtifact = await deployer.loadArtifact("AAFactory");
   const accountArtifact = await deployer.loadArtifact("Account");
-  console.log("accountArtifact ==========>", accountArtifact);
 
   const bytecodeHash = utils.hashBytecode(accountArtifact.bytecode);
   return await deployer.deploy(factoryArtifact, [bytecodeHash], undefined, [
@@ -27,7 +26,6 @@ export async function deployAccount(
     factoryArtifact.abi,
     wallet
   );
-  console.log("factory: ", factory.address);
 
   const salt = ethers.constants.HashZero;
   try {

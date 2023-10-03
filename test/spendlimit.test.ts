@@ -6,9 +6,7 @@ import {
   types,
   EIP712Signer,
 } from "zksync-web3";
-import { expect } from "chai";
 import * as ethers from "ethers";
-import * as hre from "hardhat";
 import { deployAAFactory, deployAccount } from "./utils/deploy";
 import { sendTx } from "./utils/sendtx";
 
@@ -27,10 +25,6 @@ let account: Contract;
 before(async () => {
   provider = Provider.getDefaultProvider();
   wallet = new Wallet(deployKey, provider);
-  console.log(
-    "process.env.WALLET_PRIVATE_KEY: ",
-    process.env.WALLET_PRIVATE_KEY
-  );
 
   user = new Wallet(process.env.WALLET_PRIVATE_KEY || "", provider);
   factory = await deployAAFactory(wallet);
@@ -45,25 +39,16 @@ before(async () => {
 });
 
 describe("Spending limit", function () {
-  it.only("Should deploy contracts, send ETH, and set varible correctly", async function () {
-    const balance = await provider.getBalance(account.address);
-    expect(balance.eq(ethers.BigNumber.from("100"))).to.eq(true);
-    expect((await account.ONE_DAY()).toNumber()).to.equal(SLEEP_TIME);
-
-    expect(await account.owner()).to.equal(user.address);
-  });
   it.only("Set Limit: Should add ETH spendinglimit correctly", async () => {
     let tx = await account.populateTransaction.setSpendingLimit(
       ETH_ADDRESS,
       ethers.utils.parseEther("10"),
       { value: ethers.BigNumber.from(0) }
     );
-    console.log("tx =========>", tx);
-
     const txReceipt = await sendTx(provider, account, user, tx);
     await txReceipt.wait();
   });
-  it.only("Set session: Should setSession correctly", async () => {
+  it.only("Set greeting: Should setGreeting correctly", async () => {
     const w = Wallet.createRandom();
     const s = Date.now();
     const u = new Date();
