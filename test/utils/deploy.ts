@@ -71,3 +71,15 @@ export async function deployMockZkUSD(wallet: Wallet) {
     []
   );
 }
+
+export async function deployPaymaster(wallet: Wallet, mockZkusd: string) {
+  let deployer: Deployer = new Deployer(hre, wallet);
+  const payMasterGreeter = await deployer.loadArtifact("PaymasterGreeter");
+  return await deployer.deploy(payMasterGreeter, [mockZkusd], undefined, []);
+}
+
+export async function deployGreeterAA(wallet: Wallet) {
+  let deployer: Deployer = new Deployer(hre, wallet);
+  const greeterAA = await deployer.loadArtifact("GreeterAA");
+  return await deployer.deploy(greeterAA, []);
+}

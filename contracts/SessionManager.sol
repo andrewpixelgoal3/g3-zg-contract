@@ -2,8 +2,11 @@
 pragma solidity ^0.8.0;
 
 import "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/IAccount.sol";
+import {IPaymaster, ExecutionResult, PAYMASTER_VALIDATION_SUCCESS_MAGIC} from "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/IPaymaster.sol";
+import {IPaymasterFlow} from "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/IPaymasterFlow.sol";
+import {TransactionHelper, Transaction} from "@matterlabs/zksync-contracts/l2/system-contracts/libraries/TransactionHelper.sol";
 
-abstract contract SessionManager is IAccount {
+abstract contract SessionManager is IAccount, IPaymaster {
     struct Session {
         address pubKey;
         uint256 validAfter;
@@ -54,7 +57,8 @@ abstract contract SessionManager is IAccount {
         sess.validAfter = validAfter;
         sess.validUtil = validUtil;
         session[owner] = sess;
-        ethToken.approve(address(this), type(uint256).max);
+        bool success = ethToken.approve(address(this), type(uint256).max);
+        require(success, "Failed to approve");
     }
 
     function getSession()
@@ -65,5 +69,9 @@ abstract contract SessionManager is IAccount {
         _pubKey = session[owner].pubKey;
         _validAfter = session[owner].validAfter;
         _validUtil = session[owner].validUtil;
+    }
+
+    function getOwner() external view returns (address _owner) {
+        _owner = owner;
     }
 }

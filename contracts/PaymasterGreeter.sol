@@ -6,13 +6,16 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPaymaster, ExecutionResult, PAYMASTER_VALIDATION_SUCCESS_MAGIC} from "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/IPaymaster.sol";
 import {IPaymasterFlow} from "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/IPaymasterFlow.sol";
 import {TransactionHelper, Transaction} from "@matterlabs/zksync-contracts/l2/system-contracts/libraries/TransactionHelper.sol";
-
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@matterlabs/zksync-contracts/l2/system-contracts/Constants.sol";
+import "./IAccount.sol";
 
-contract MyPaymaster is IPaymaster {
-    uint256 constant PRICE_FOR_PAYING_FEES = 1;
+contract PaymasterGreeter is IPaymaster, Ownable {
+    bytes4 GREETER_SET_GREETING_AA =
+        bytes4(keccak256(bytes("setGreeting(string)")));
 
     address public allowedToken;
+    mapping(address => mapping(bytes4 => bool)) private allowedContract;
 
     modifier onlyBootloader() {
         require(
@@ -25,6 +28,20 @@ contract MyPaymaster is IPaymaster {
 
     constructor(address _erc20) {
         allowedToken = _erc20;
+    }
+
+    function setAllowContract(
+        address allowContract,
+        bytes4 selector
+    ) public onlyOwner {
+        allowedContract[allowContract][selector] = true;
+    }
+
+    function getAllowContract(
+        address allowContract,
+        bytes4 selector
+    ) external view returns (bool) {
+        return allowedContract[allowContract][selector];
     }
 
     function validateAndPayForPaymasterTransaction(
@@ -50,46 +67,25 @@ contract MyPaymaster is IPaymaster {
         if (paymasterInputSelector == IPaymasterFlow.approvalBased.selector) {
             // While the transaction data consists of address, uint256 and bytes data,
             // the data is not needed for this paymaster
-            (address token, uint256 amount, bytes memory data) = abi.decode(
-                _transaction.paymasterInput[4:],
-                (address, uint256, bytes)
-            );
-
-            // Verify if token is the correct one
-            require(token == allowedToken, "Invalid token");
-
-            // We verify that the user has provided enough allowance
-            address userAddress = address(uint160(_transaction.from));
-
-            address thisAddress = address(this);
-
-            uint256 providedAllowance = IERC20(token).allowance(
-                userAddress,
-                thisAddress
-            );
-            require(
-                providedAllowance >= PRICE_FOR_PAYING_FEES,
-                "Min allowance too low"
-            );
+            address contractAddress = address(uint160(_transaction.to));
+            bytes4 contractSelector = bytes4(_transaction.data[0:4]);
+            if (allowedContract[contractAddress][contractSelector]) {
+                if (contractSelector == GREETER_SET_GREETING_AA) {
+                    uint fee = 1 * 10 ** 18;
+                    address accountAddress = address(
+                        uint160(_transaction.from)
+                    );
+                    IAccount account = IAccount(accountAddress);
+                    address owner = account.getOwner();
+                    _transferTokenFromAAToOwner(owner, accountAddress, fee);
+                    _transferToken(accountAddress, fee);
+                }
+            }
 
             // Note, that while the minimal amount of ETH needed is tx.gasPrice * tx.gasLimit,
             // neither paymaster nor account are allowed to access this context variable.
             uint256 requiredETH = _transaction.gasLimit *
                 _transaction.maxFeePerGas;
-
-            try
-                IERC20(token).transferFrom(userAddress, thisAddress, amount)
-            {} catch (bytes memory revertReason) {
-                // If the revert reason is empty or represented by just a function selector,
-                // we replace the error with a more user-friendly message
-                if (revertReason.length <= 4) {
-                    revert("Failed to transferFrom from users' account");
-                } else {
-                    assembly {
-                        revert(add(0x20, revertReason), mload(revertReason))
-                    }
-                }
-            }
 
             // The bootloader never returns any data, so it can safely be ignored here.
             (bool success, ) = payable(BOOTLOADER_FORMAL_ADDRESS).call{
@@ -101,6 +97,44 @@ contract MyPaymaster is IPaymaster {
             );
         } else {
             revert("Unsupported paymaster flow");
+        }
+    }
+
+    function _transferToken(address userAddress, uint amount) internal {
+        address thisAddress = address(this);
+
+        try
+            IERC20(allowedToken).transferFrom(userAddress, thisAddress, amount)
+        {} catch (bytes memory revertReason) {
+            // If the revert reason is empty or represented by just a function selector,
+            // we replace the error with a more user-friendly message
+            if (revertReason.length <= 4) {
+                revert("Failed to transferFrom from users' account");
+            } else {
+                assembly {
+                    revert(add(0x20, revertReason), mload(revertReason))
+                }
+            }
+        }
+    }
+
+    function _transferTokenFromAAToOwner(
+        address aa,
+        address owner,
+        uint amount
+    ) internal {
+        try IERC20(allowedToken).transferFrom(owner, aa, amount) {} catch (
+            bytes memory revertReason
+        ) {
+            // If the revert reason is empty or represented by just a function selector,
+            // we replace the error with a more user-friendly message
+            if (revertReason.length <= 4) {
+                revert("Failed to transferFrom from users' account");
+            } else {
+                assembly {
+                    revert(add(0x20, revertReason), mload(revertReason))
+                }
+            }
         }
     }
 
