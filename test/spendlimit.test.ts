@@ -7,9 +7,15 @@ import {
   EIP712Signer,
 } from "zksync-web3";
 import * as ethers from "ethers";
-import { deployAAFactory, deployAccount } from "./utils/deploy";
+import {
+  deployAAFactory,
+  deployAccount,
+  deployMockZkUSD,
+} from "./utils/deploy";
 import { sendTx } from "./utils/sendtx";
 import { expect } from "chai";
+import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
+import * as hre from "hardhat";
 
 const deployKey =
   "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
@@ -22,6 +28,7 @@ let user: Wallet;
 
 let factory: Contract;
 let account: Contract;
+let mockZkUsd: Contract;
 let accountOwner: Contract;
 
 before(async () => {
@@ -29,11 +36,13 @@ before(async () => {
   wallet = new Wallet(deployKey, provider);
 
   user = new Wallet(process.env.WALLET_PRIVATE_KEY || "", provider);
+  mockZkUsd = await deployMockZkUSD(wallet);
   factory = await deployAAFactory(wallet);
   const { accountWithSmSigner, accountWithUserSigner } = await deployAccount(
     wallet,
     user,
-    factory.address
+    factory.address,
+    mockZkUsd.address
   );
   account = accountWithSmSigner;
   accountOwner = accountWithUserSigner;
@@ -57,7 +66,14 @@ describe("Spending limit", function () {
     await txReceipt.wait();
   });
   it.only("Set greeting: Should setGreeting correctly", async () => {
-    const w = Wallet.createRandom();
+    // const w = Wallet.createRandom();
+    // console.log("pk: ", w.privateKey);
+    // console.log("address: ", w.address);
+
+    const w = new Wallet(
+      "0xd6a10abc087de99b5abb2ade0eae46bca58a1650cebbbc94e5858bbad0231815",
+      provider
+    );
     const s = Date.now();
     const u = new Date();
     u.setDate(u.getDate() + 1);
@@ -65,14 +81,19 @@ describe("Spending limit", function () {
     const validAfter = Math.floor(s / 1000);
     const validUntil = Math.floor(_u / 1000);
     const pubKey = await w.getAddress();
-    let tx = await account.populateTransaction.setSession(
-      pubKey,
-      validAfter.toString(),
-      validUntil.toString(),
-      {
-        value: ethers.BigNumber.from(0),
-      }
-    );
+    let tx;
+    try {
+      tx = await accountOwner.populateTransaction.setSession(
+        pubKey,
+        validAfter.toString(),
+        validUntil.toString(),
+        {
+          value: ethers.BigNumber.from(0),
+        }
+      );
+    } catch (error) {
+      console.log("error1: ", error);
+    }
     tx = {
       ...tx,
       from: user.address,
@@ -97,18 +118,31 @@ describe("Spending limit", function () {
     };
     await (await provider.sendTransaction(utils.serialize(tx))).wait();
     const session = await account.getSession();
-    console.log("session: ", session);
-
     expect(session._pubKey).to.eq(w.address);
+    const salt = ethers.constants.HashZero;
+    const AbiCoder = new ethers.utils.AbiCoder();
+    const account_address = utils.create2Address(
+      factory.address,
+      await factory.aaBytecodeHash(),
+      salt,
+      AbiCoder.encode(["address"], [user.address])
+    );
+    let deployer: Deployer = new Deployer(hre, wallet);
+    const accountArtifact = await deployer.loadArtifact("Account");
+    const accountSession = new ethers.Contract(
+      account_address,
+      accountArtifact.abi,
+      user
+    );
     //set greeting
-    let tx1 = await accountOwner.populateTransaction.setGreeting("Andrew", {
+    let tx1 = await accountSession.populateTransaction.setGreeting("Andrew", {
       value: ethers.BigNumber.from(0),
     });
     tx1 = {
       ...tx1,
-      from: user.address,
+      from: account.address,
       chainId: (await provider.getNetwork()).chainId,
-      nonce: await provider.getTransactionCount(user.address),
+      nonce: await provider.getTransactionCount(account.address),
       type: 113,
       customData: {
         gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
@@ -126,6 +160,7 @@ describe("Spending limit", function () {
       ...tx1.customData,
       customSignature: signature1,
     };
+
     await (await provider.sendTransaction(utils.serialize(tx1))).wait();
   });
 });

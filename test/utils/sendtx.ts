@@ -36,11 +36,12 @@ export async function sendTx(
     ethers.utils.joinSignature(user._signingKey().signDigest(signedTxHash))
   );
   const recoverAddress = ethers.utils.recoverAddress(signedTxHash, signature);
-  console.log("recoverAddress: ", recoverAddress);
 
   tx.customData = {
     ...tx.customData,
     customSignature: signature,
   };
+  console.log("tx: ", tx);
+
   return await provider.sendTransaction(utils.serialize(tx));
 }

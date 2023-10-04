@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/IAccount.sol";
 import "@matterlabs/zksync-contracts/l2/system-contracts/libraries/TransactionHelper.sol";
 import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 // Used for signature validation
@@ -14,9 +13,10 @@ import "./SpendingLimit.sol";
 import "./SessionManager.sol";
 import "./Greeter.sol";
 
-contract Account is IAccount, IERC1271, SpendingLimit, Greeter {
+contract Account is IERC1271, SpendingLimit, Greeter {
     // to get transaction hash
     using TransactionHelper for Transaction;
+    error LOG(bytes4 log);
 
     bytes4 constant EIP1271_SUCCESS_RETURN_VALUE = 0x1626ba7e;
     // bytes4 private constant GREETER_SET_GREETING_SELECTOR =
@@ -31,7 +31,7 @@ contract Account is IAccount, IERC1271, SpendingLimit, Greeter {
         _;
     }
 
-    constructor(address _owner) Greeter(_owner) {}
+    constructor(address _owner, address _token) Greeter(_owner, _token) {}
 
     function validateTransaction(
         bytes32,
@@ -56,7 +56,17 @@ contract Account is IAccount, IERC1271, SpendingLimit, Greeter {
                 (_transaction.nonce)
             )
         );
-
+        // if (
+        //     contractSelector == bytes4(keccak256(bytes("setGreeting(string)")))
+        // ) {
+        //     revert("run here 222222222");
+        // }
+        // if (
+        //     contractSelector ==
+        //     bytes4(keccak256(bytes("setSession(address,uint256,uint256)")))
+        // ) {
+        //     revert("run here 1111111111");
+        // }
         bytes32 txHash;
         // While the suggested signed hash is usually provided, it is generally
         // not recommended to rely on it to be present, since in the future
@@ -127,6 +137,12 @@ contract Account is IAccount, IERC1271, SpendingLimit, Greeter {
                     0
                 )
             }
+            // bytes4 selector = (bytes4)(_transaction.data[0:4]);
+            // if (selector == (bytes4(keccak256(bytes("setGreeting(string)"))))) {
+            //     if (success) {
+            //         revert("run here 123");
+            //     }
+            // }
             require(success);
         }
     }
@@ -189,15 +205,8 @@ contract Account is IAccount, IERC1271, SpendingLimit, Greeter {
         // Note, that we should abstain from using the require here in order to allow for fee estimation to work
         if (recoveredAddress != owner && recoveredAddress != address(0)) {
             //get session
-            if (recoveredAddress == sessionKeys.pubKey) {
+            if (recoveredAddress != session[owner].pubKey) {
                 //check if pubKey valid
-                if (
-                    sessionKeys.validAfter > block.timestamp ||
-                    sessionKeys.validUtil < block.timestamp
-                ) {
-                    magic = bytes4(0);
-                }
-            } else {
                 magic = bytes4(0);
             }
         }

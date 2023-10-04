@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./SessionManager.sol";
 
-contract Greeter is SessionManager {
+abstract contract Greeter is SessionManager {
     string private greeting;
     address public ownerGreeter;
     modifier onlyOwnerGreeting() {
@@ -14,7 +14,7 @@ contract Greeter is SessionManager {
         _;
     }
 
-    constructor(address _owner) SessionManager(_owner) {
+    constructor(address _owner, address _token) SessionManager(_owner, _token) {
         ownerGreeter = _owner;
     }
 
@@ -22,7 +22,7 @@ contract Greeter is SessionManager {
         return greeting;
     }
 
-    function setGreeting(string memory _greeting) public onlyOwner {
+    function setGreeting(string memory _greeting) public onlyFromAccount {
         greeting = _greeting;
     }
 }

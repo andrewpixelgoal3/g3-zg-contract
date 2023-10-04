@@ -3,6 +3,7 @@ import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { ethers } from "ethers";
 
+const ETH_ADDRESS = "0x000000000000000000000000000000000000800A";
 export async function deployAAFactory(wallet: Wallet): Promise<Contract> {
   let deployer: Deployer = new Deployer(hre, wallet);
   const factoryArtifact = await deployer.loadArtifact("AAFactory");
@@ -17,7 +18,8 @@ export async function deployAAFactory(wallet: Wallet): Promise<Contract> {
 export async function deployAccount(
   wallet: Wallet,
   owner: Wallet,
-  factory_address: string
+  factory_address: string,
+  mockZkUsd: string
 ): Promise<{
   accountWithSmSigner: Contract;
   accountWithUserSigner: Contract;
@@ -32,7 +34,7 @@ export async function deployAccount(
 
   const salt = ethers.constants.HashZero;
   try {
-    await (await factory.deployAccount(salt, owner.address)).wait();
+    await (await factory.deployAccount(salt, owner.address, mockZkUsd)).wait();
   } catch (error) {
     console.log("Error: ", error);
   }
@@ -41,7 +43,7 @@ export async function deployAccount(
     factory.address,
     await factory.aaBytecodeHash(),
     salt,
-    AbiCoder.encode(["address"], [owner.address])
+    AbiCoder.encode(["address", "address"], [owner.address, mockZkUsd])
   );
   const accountArtifact = await deployer.loadArtifact("Account");
 
@@ -57,4 +59,15 @@ export async function deployAccount(
       owner
     ),
   };
+}
+
+export async function deployMockZkUSD(wallet: Wallet) {
+  let deployer: Deployer = new Deployer(hre, wallet);
+  const mockZkUsdArtifact = await deployer.loadArtifact("MockToken");
+  return await deployer.deploy(
+    mockZkUsdArtifact,
+    [ethers.utils.parseEther("1000000")],
+    undefined,
+    []
+  );
 }

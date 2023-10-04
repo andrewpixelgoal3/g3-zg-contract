@@ -13,7 +13,8 @@ contract AAFactory {
 
     function deployAccount(
         bytes32 salt,
-        address owner
+        address owner,
+        address token
     ) external returns (address accountAddress) {
         (bool success, bytes memory returnData) = SystemContractsCaller
             .systemCallWithReturndata(
@@ -25,7 +26,7 @@ contract AAFactory {
                     (
                         salt,
                         aaBytecodeHash,
-                        abi.encode(owner),
+                        abi.encode(owner, token),
                         IContractDeployer.AccountAbstractionVersion.Version1
                     )
                 )
